@@ -1,0 +1,55 @@
+name: Build FlashBeat APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get project files
+        uses: actions/checkout@v4
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Extract project
+        run: |
+          mkdir project
+          ZIP=$(find . -maxdepth 1 -iname '*.zip' | head -n 1)
+          if [ -z "$ZIP" ]; then
+            echo "Project ZIP not found"
+            exit 1
+          fi
+          unzip -q "$ZIP" -d project
+
+      - name: Find Android project
+        run: |
+          echo "Searching for Android project..."
+          find project -name settings.gradle.kts
+          find project -name build.gradle.kts
+
+      - name: Build APK
+        run: |
+          ROOT=$(find project -type f -name settings.gradle.kts \
+            -exec dirname {} \; | head -n 1)
+          if [ -z "$ROOT" ] || [ ! -f "$ROOT/app/build.gradle.kts" ]; then
+            echo "Android project or app module not found"
+            exit 1
+          fi
+          cd "$ROOT"
+          gradle assembleDebug
+
+      - name: Save APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlashBeat-APK
+          path: project/**/app/build/outputs/apk/debug/*.apk
